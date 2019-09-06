@@ -51,7 +51,7 @@
     <div class="post">
   <h1>Automate SSL Certificates in Kubernetes</h1>
   <time datetime=2019-09-06T14:16:07&#43;0200 class="post-date">Fri, Sep 6, 2019</time>
-  <p>HTTPS is extremely important nowadays. It&rsquo;s almost always a bad idea to not use it, even in the internal traffic. The good news is that we have Let&rsquo;s Encrypt which can provide us by free SSL/TLS certificates and API to generate these certificates automaticaly. There is a few ways to handle SSL Certificates in Kubernetes, we can either do it manually, by creating <code>Secret</code> and use it in the ingres like:</p>
+  <p>HTTPS is extremely important nowadays. It&rsquo;s almost always a bad idea not use it, even in the internal traffic. The good news is that we have Let&rsquo;s Encrypt which can provide us by free SSL/TLS certificates and API to generate these certificates automaticaly. There is a few ways to handle SSL Certificates in Kubernetes, we can either do it manually, by creating <code>Secret</code> and use it in the ingres like:</p>
 
 <pre><code>apiVersion: extensions/v1beta1
 kind: Ingress
@@ -75,7 +75,7 @@ spec:
             servicePort: 80
 </code></pre>
 
-<p>or we can try to automate it by writing or using some tools/scripts. The most popular is cert-manager. Cert-manager can be used to obtain certificates from a CA using the ACME protocol. The ACME protocol supports various challenge mechanisms which are used to prove ownership of a domain so that a valid certificate can be issued for that domain.</p>
+<p>or we can try to automate it by writing or using some tools/scripts. The most popular one is cert-manager. Cert-manager can be used to obtain certificates from a CA using the ACME protocol. The ACME protocol supports various challenge mechanisms which are used to prove ownership of a domain so that a valid certificate can be issued for that domain.</p>
 
 <p>One such challenge mechanism is the HTTP-01 challenge. With a HTTP-01 challenge, you prove ownership of a domain by ensuring that a particular file is present at the domain. It is assumed that you control the domain if you are able to publish the given file under a given path.</p>
 
@@ -151,13 +151,13 @@ spec:
 <li>DigitalOcean</li>
 </ul>
 
-<p>Which method shall we use? The answer is simply, the one which we can. If we have a public webservice then we can simply use HTTP-01 method as it&rsquo;s much more simple and we don&rsquo;t need to care much about our DNS provider and all settings needed to authenticate to it. The problem is when we don&rsquo;t want to allow public access to one of our service and we still need SSL Certificate for it. Then we can choose DNS-01 option and everything seems to be fine except that maybe, like in my case, dns provider which I&rsquo;m using is not on the cert-manager list.</p>
+<p>Which method shall we use? The answer is simple, the one which we can. If we have a public webservice then we can simply use HTTP-01 method as it&rsquo;s much more simple and we don&rsquo;t need to care much about our DNS provider and all settings needed to authenticate to it. The problem is when we don&rsquo;t want to allow public access to one of our service and we still need to have SSL Certificate for it. Then we can choose DNS-01 option. The problem might be like like in my case, that dns provider which I&rsquo;m using is not on the supported cert-manager list. Then there only way to use it is to write our own DNS Provider.</p>
 
 <p>Time to write our own DNS provider.</p>
 
 <p>In one of my project I needed to connect to the OpenStack Designate. Designate is a multi-tenant DNSaaS service for OpenStack. It provides a REST API with integrated Keystone authentication. Designate supports a variety of DNS servers including Bind9 and PowerDNS.</p>
 
-<p>Fortunately there is a module which we can use to connect to the Designate and execute calls.</p>
+<p>Fortunately there is a great module which we can use to connect to the Designate and execute calls.</p>
 
 <pre><code>&quot;github.com/gophercloud/gophercloud&quot;
 &quot;github.com/gophercloud/gophercloud/openstack&quot;
@@ -165,7 +165,7 @@ spec:
 &quot;github.com/gophercloud/gophercloud/openstack/dns/v2/zones&quot;
 </code></pre>
 
-<p>Everything what we need to do is to authenticate and call proper method. The simples way to authenticate to the OpenStack Designate is to export environment variables. We can do it by writing pkg like:</p>
+<p>Before we call any method we need to authenticate. The simplest way to do it is to export environment variables needed by Designate to authenticate. We can do it by writing pkg like:</p>
 
 <pre><code>package conf
 
@@ -185,7 +185,6 @@ type config struct {
 	EndPointType 		string
 }
 
-// mustGetEnv returns an env variable value if present and fails othwewise
 func mustGetEnv(k string) string {
 	v := os.Getenv(k)
 	if v == &quot;&quot; {
@@ -213,7 +212,7 @@ func InitConfig() {
 }
 </code></pre>
 
-<p>We also need to create a struct, for Designate, I end up with something like:</p>
+<p>We also need to create a struct for Designate, I end up with something like:</p>
 
 <pre><code>type Designate struct {
         DNSClient *gophercloud.ServiceClient
@@ -237,7 +236,7 @@ type DNSOptions struct {
 }
 </code></pre>
 
-<p>And now finally we can authenticate to the Designate:</p>
+<p>And now finally we can authenticate:</p>
 
 <pre><code>func NewAPI() (*Designate, error) {
         opts, err := openstack.AuthOptionsFromEnv()
@@ -313,12 +312,20 @@ type DNSOptions struct {
 <p>For interface we can use type assertion:</p>
 
 <pre><code>	_, ok := resulto.(*openstackapi.Designate)
-	if !oko {
+	if !ok {
 		t.Error(&quot;Error! &quot;, err)
 	}
 </code></pre>
 
 <p>And that&rsquo;s all. All what we need to do now is to create ingress with the domain and specify TLS section for it. After few minutes we should be able to see a valid Certificate.</p>
+
+<p>To verify our Certificate:</p>
+
+<pre><code>➜  ~ kubectl get Certificates
+NAME                       READY   SECRET                     AGE
+webservice-foo-tls   True    webservice-foo-tls   24d
+➜  ~
+</code></pre>
 
 </div>
 
