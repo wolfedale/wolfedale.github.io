@@ -6,9 +6,19 @@
     <description>Recent content on Pawel Grzesik</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
+    <lastBuildDate>Fri, 06 Sep 2019 14:16:07 +0200</lastBuildDate>
     
 	<atom:link href="https://wolfedale.github.io/index.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>Automate SSL Certificates in Kubernetes</title>
+      <link>https://wolfedale.github.io/posts/automate-ssl-certificates-in-kubernetes/</link>
+      <pubDate>Fri, 06 Sep 2019 14:16:07 +0200</pubDate>
+      
+      <guid>https://wolfedale.github.io/posts/automate-ssl-certificates-in-kubernetes/</guid>
+      <description>HTTPS is extremely important nowadays. It&amp;rsquo;s almost always a bad idea to not use it, even in the internal traffic. The good news is that we have Let&amp;rsquo;s Encrypt which can provide us by free SSL/TLS certificates and API to generate these certificates automaticaly. There is a few ways to handle SSL Certificates in Kubernetes, we can either do it manually, by creating Secret and use it in the ingres like:</description>
+    </item>
     
   </channel>
 </rss>

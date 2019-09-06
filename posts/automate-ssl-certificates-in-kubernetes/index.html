@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en-us" lang="en-us">
+<head>
+  <link href="//gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.58.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Automate SSL Certificates in Kubernetes &middot; Pawel Grzesik</title>
+
+  
+  <link type="text/css" rel="stylesheet" href="https://wolfedale.github.iocss/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://wolfedale.github.iocss/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://wolfedale.github.iocss/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://wolfedale.github.iocss/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://wolfedale.github.io"><h1>Pawel Grzesik</h1></a>
+      <p class="lead">
+       SRE at eBay, love to code in Golang and spending too much time on the shooting range. 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://wolfedale.github.io">Home</a> </li>
+        <li><a href="http://github.com/wolfedale/"> Github </a></li><li><a href="https://www.linkedin.com/in/pawel-grzesik-45766420/"> LinkedIn </a></li><li><a href="https://twitter.com/GrzesikPawel"> Twitter </a></li>
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Automate SSL Certificates in Kubernetes</h1>
+  <time datetime=2019-09-06T14:16:07&#43;0200 class="post-date">Fri, Sep 6, 2019</time>
+  <p>HTTPS is extremely important nowadays. It&rsquo;s almost always a bad idea to not use it, even in the internal traffic. The good news is that we have Let&rsquo;s Encrypt which can provide us by free SSL/TLS certificates and API to generate these certificates automaticaly. There is a few ways to handle SSL Certificates in Kubernetes, we can either do it manually, by creating <code>Secret</code> and use it in the ingres like:</p>
+
+<pre><code>apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: nginx-test
+spec:
+  tls:
+    - hosts:
+      - foo.bar.com
+      # This assumes tls-secret exists and the SSL 
+      # certificate contains a CN for foo.bar.com
+      secretName: tls-secret
+  rules:
+    - host: foo.bar.com
+      http:
+        paths:
+        - path: /
+          backend:
+            # This assumes http-svc exists and routes to healthy endpoints
+            serviceName: http-svc
+            servicePort: 80
+</code></pre>
+
+<p>or we can try to automate it by writing or using some tools/scripts. The most popular is cert-manager. Cert-manager can be used to obtain certificates from a CA using the ACME protocol. The ACME protocol supports various challenge mechanisms which are used to prove ownership of a domain so that a valid certificate can be issued for that domain.</p>
+
+<p>One such challenge mechanism is the HTTP-01 challenge. With a HTTP-01 challenge, you prove ownership of a domain by ensuring that a particular file is present at the domain. It is assumed that you control the domain if you are able to publish the given file under a given path.</p>
+
+<p>To use HTTP-01 challenge we only need to specify it in the <code>Issuer</code> or <code>ClusterIssuer</code>:</p>
+
+<pre><code>apiVersion: certmanager.k8s.io/v1alpha1
+kind: Issuer
+metadata:
+  name: letsencrypt-staging
+  namespace: default
+spec:
+  acme:
+    # The ACME server URL
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    # Email address used for ACME registration
+    email: user@example.com
+    # Name of a secret used to store the ACME account private key
+    privateKeySecretRef:
+      name: letsencrypt-staging
+    # Enable the HTTP-01 challenge provider
+    http01: {}
+</code></pre>
+
+<p>Another way is to use DNS-01 challenge. With a DNS-01 challenge, you prove ownership of a domain by proving you control its DNS records. This is done by creating a TXT record with specific content that proves you have control of the domains DNS records. Configuration looks similar but of course we need to specify <code>dns01:</code> and our DNS provider, for example:</p>
+
+<pre><code>apiVersion: certmanager.k8s.io/v1alpha1
+kind: Issuer
+metadata:
+  name: letsencrypt-staging
+  namespace: default
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: user@example.com
+
+    # Name of a secret used to store the ACME account private key
+    privateKeySecretRef:
+      name: letsencrypt-staging
+
+    # ACME DNS-01 provider configurations
+    dns01:
+
+      # Here we define a list of DNS-01 providers that can solve DNS challenges
+      providers:
+
+        - name: prod-dns
+          clouddns:
+            # A secretKeyRef to a google cloud json service account
+            serviceAccountSecretRef:
+              name: clouddns-service-account
+              key: service-account.json
+            # The project in which to update the DNS zone
+            project: gcloud-prod-project
+
+        - name: cf-dns
+          cloudflare:
+            email: user@example.com
+            # A secretKeyRef to a cloudflare api key
+            apiKeySecretRef:
+              name: cloudflare-api-key
+              key: api-key.txt
+</code></pre>
+
+<p>Supported DNS01 providers by cert-manager:</p>
+
+<ul>
+<li>ACME-DNS</li>
+<li>Akamai FastDNS</li>
+<li>AzureDNS</li>
+<li>Cloudflare</li>
+<li>Google CloudDNS</li>
+<li>Amazon Route53</li>
+<li>DigitalOcean</li>
+</ul>
+
+<p>Which method shall we use? The answer is simply, the one which we can. If we have a public webservice then we can simply use HTTP-01 method as it&rsquo;s much more simple and we don&rsquo;t need to care much about our DNS provider and all settings needed to authenticate to it. The problem is when we don&rsquo;t want to allow public access to one of our service and we still need SSL Certificate for it. Then we can choose DNS-01 option and everything seems to be fine except that maybe, like in my case, dns provider which I&rsquo;m using is not on the cert-manager list.</p>
+
+<p>Time to write our own DNS provider.</p>
+
+<p>In one of my project I needed to connect to the OpenStack Designate. Designate is a multi-tenant DNSaaS service for OpenStack. It provides a REST API with integrated Keystone authentication. Designate supports a variety of DNS servers including Bind9 and PowerDNS.</p>
+
+<p>Fortunately there is a module which we can use to connect to the Designate and execute calls.</p>
+
+<pre><code>&quot;github.com/gophercloud/gophercloud&quot;
+&quot;github.com/gophercloud/gophercloud/openstack&quot;
+&quot;github.com/gophercloud/gophercloud/openstack/dns/v2/recordsets&quot;
+&quot;github.com/gophercloud/gophercloud/openstack/dns/v2/zones&quot;
+</code></pre>
+
+<p>Everything what we need to do is to authenticate and call proper method. The simples way to authenticate to the OpenStack Designate is to export environment variables. We can do it by writing pkg like:</p>
+
+<pre><code>package conf
+
+import (
+	&quot;log&quot;
+	&quot;os&quot;
+)
+
+type config struct {
+	RegionName 		string
+	TenantId 		string
+	IdentityApiVersion 	string
+	Password 		string
+	AuthUrl 		string
+	Username 		string
+	TenantName 		string
+	EndPointType 		string
+}
+
+// mustGetEnv returns an env variable value if present and fails othwewise
+func mustGetEnv(k string) string {
+	v := os.Getenv(k)
+	if v == &quot;&quot; {
+		log.Fatalf(&quot;%s environment variable not set.&quot;, k)
+	}
+	return v
+}
+
+// Config keeps an exposed configuration structure
+var Config config
+
+// InitConfig populates config variable and supposed to be called when application started
+func InitConfig() {
+	m := mustGetEnv
+	Config = config{
+		RegionName: 	    m(&quot;OS_REGION_NAME&quot;),
+		TenantId: 	    m(&quot;OS_TENANT_ID&quot;),
+		IdentityApiVersion: m(&quot;OS_IDENTITY_API_VERSION&quot;),
+		Password: 	    m(&quot;OS_PASSWORD&quot;),
+		AuthUrl: 	    m(&quot;OS_AUTH_URL&quot;),
+		Username: 	    m(&quot;OS_USERNAME&quot;),
+		TenantName: 	    m(&quot;OS_TENANT_NAME&quot;),
+		EndPointType: 	    m(&quot;OS_ENDPOINT_TYPE&quot;),
+	}
+}
+</code></pre>
+
+<p>We also need to create a struct, for Designate, I end up with something like:</p>
+
+<pre><code>type Designate struct {
+        DNSClient *gophercloud.ServiceClient
+        Operation string
+        Request Request
+        DNSOptions DNSOptions
+}
+
+type Request struct {
+        IdentifierName string
+        ZoneName string
+        ZoneID string
+        RecordID string
+}
+
+type DNSOptions struct {
+        DNSType string
+        DNSRecord string
+        DNSDescription string
+        DNSTTL int
+}
+</code></pre>
+
+<p>And now finally we can authenticate to the Designate:</p>
+
+<pre><code>func NewAPI() (*Designate, error) {
+        opts, err := openstack.AuthOptionsFromEnv()
+
+        provider, err := openstack.AuthenticatedClient(opts)
+        if err != nil {
+                return &amp;Designate{}, err
+        }
+
+        dnsClient, err := openstack.NewDNSV2(provider, gophercloud.EndpointOpts{
+                Region: os.Getenv(&quot;OS_REGION_NAME&quot;),
+        })
+        if err != nil {
+                return &amp;Designate{}, err
+        }
+	(...)
+</code></pre>
+
+<p>And call one of the methods to create/delete or update record.</p>
+
+<pre><code>func (openstack *Designate) CreateRecord() error {
+        createOpts := recordsets.CreateOpts{
+                Name:        openstack.Request.IdentifierName,
+                Type:        openstack.DNSOptions.DNSType,
+                TTL:         openstack.DNSOptions.DNSTTL,
+                Description: openstack.DNSOptions.DNSDescription,
+                Records:     []string{openstack.DNSOptions.DNSRecord},
+        }
+
+        rr, err := recordsets.Create(openstack.DNSClient, openstack.Request.ZoneID, createOpts).Extract()
+        if err != nil {
+                return err
+        }
+        return nil
+}
+</code></pre>
+
+<pre><code>func (openstack *Designate) UpdateRecord() error {
+        updateOpts := recordsets.UpdateOpts{
+                TTL:         helpers.IntToPointer(3600),
+                Description: &amp;openstack.DNSOptions.DNSDescription,
+                Records:     []string{openstack.DNSOptions.DNSRecord},
+        }
+
+        rr, err := recordsets.Update(openstack.DNSClient, openstack.Request.ZoneID, openstack.Request.RecordID, updateOpts).Extract()
+        if err != nil {
+                return err
+        }
+        return nil
+}
+</code></pre>
+
+<pre><code>func (openstack *Designate) DeleteRecord() error {
+        err := recordsets.Delete(openstack.DNSClient, openstack.Request.ZoneID, openstack.Request.RecordID).ExtractErr()
+        if err != nil {
+                return err
+        }
+        return nil
+}
+</code></pre>
+
+<p>It&rsquo;s also good to create an interface. In case we would like to add more DNS providers we can use interface which will simplify our tests and logic.</p>
+
+<pre><code>type DNSProvider interface {
+        CreateRecord() error
+        UpdateRecord() error
+        DeleteRecord() error
+}
+</code></pre>
+
+<p>Do not forget to write tests for all those methods and for the interface.</p>
+
+<p>For interface we can use type assertion:</p>
+
+<pre><code>	_, ok := resulto.(*openstackapi.Designate)
+	if !oko {
+		t.Error(&quot;Error! &quot;, err)
+	}
+</code></pre>
+
+<p>And that&rsquo;s all. All what we need to do now is to create ingress with the domain and specify TLS section for it. After few minutes we should be able to see a valid Certificate.</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>
