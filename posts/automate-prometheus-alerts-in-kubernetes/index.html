@@ -53,69 +53,47 @@
   <time datetime=2019-12-06T19:41:16&#43;0100 class="post-date">Fri, Dec 6, 2019</time>
   
 
-<p>To keep monitoring rules up to date it&rsquo;s not an easy task. Especially when we have a lot of services because of the scale, or because we are gworing fast.
-There is few ways how to handle it, one of it is to use pipeline and add new rules for the new service we just added. Depends on our pipline, it might
-be hard or easy. We already tried this method and it kind of worked. At some point it started to be more complicated and every time when we hit any issue
-someone was dealing with it again. Another problem which we hit was that whenever we wanted to change something globally we needed to do it for all
-repositories. We even wrote our own lib for it &ldquo;framework&rdquo; but we still had a problem with triggering all of them, and it also took a time.
-This is why we started to work on the PARG, Prometheus Alerter Rules Generator, an operator running inside of the cluster and watching for the new
+<p>To keep monitoring rules up to date it&rsquo;s not an easy task. Especially when we have a lot of services because of the big scale, or because we are growing fast.
+There is few ways how to handle it, one of it is to use pipelines and add new rules for the new services we just added. Depends on our pipline, it might
+be easy or not. We already tried this method and it kind of worked. At some point it started to be more and more complicated and every time when we hit a issue
+someone was dealing with it again and with the whole process. Another problem which we hit was that whenever we wanted to change something globally we needed to do it for
+the all repositories. We even wrote our own lib for it and we called it a &ldquo;framework&rdquo; but we still had a problem with triggering all of them in the same time, and it also took some time to actually change it on all our production clusters. It wasn&rsquo;t always fast and easy.
+This is why we started to work on the PARG, Prometheus Alerter Rules Generator, an operator running inside of each cluster and watching for the new
 ingresses and services.</p>
 
-<ol>
-<li>What we monitor
-We are trying to monitor only really important services. Only what actually client is seeing. Before going to see the rules let&rsquo;s remind some terminology
-which we are going to use here:</li>
-</ol>
+<p>We are trying to monitor only really important services. Most of those which clients are hitting. Now let&rsquo;s look on some terminology.</p>
 
 <ul>
-<li><em>SLI</em> - Service Level Indicator
-which is a measurement the service provider uses for the goal. Frequency of successful probes of our system.
-Example:</li>
-<li>95th percentile latency of homepage requests over past 5 minutes &lt; 300ms</li>
+<li><p><em>SLI</em> - Service Level Indicator, is a measurement the service provider uses for the goal. Frequency of successful probes of our system. For example: 95th percentile latency of homepage requests over past 5 minutes &lt; 300ms, or percentile of HTTP responses which are successful (200), out of all 20x and 50x HTTP responses over past 5 minutes</p></li>
 
-<li><p>The percentile of HTTP responses which are successful (200), out of all 20x and 50x HTTP responses over past 5 minutes</p></li>
+<li><p><em>SLO</em> - Service Level Objectives, are service level objectices, which are agreed upon bounds for how often those SLIs must be met. SLO lets you specify how much downtime your service can have in a given period. For example 95th percentile homepage SLI will succeed 99.9% over trailing year or 43 minutes every 30 days for a service that needs to be available 99.9% of the time. This downtime is also your error budget.</p></li>
 
-<li><p><em>SLO</em> - Service Level Objectives
-SLOs are service level objectices, which are agreed upon bounds for how often those SLIs must be met. SLO lets you specify how much downtime your service can have in a given period.
-Example:</p></li>
+<li><p><em>SLA</em> - Service Level Agreements, are business level agreemenets, which define the service availability for a customer and the penalties for failing to deliver that availability.</p></li>
 
-<li><p>95th percentile homepage SLI will succeed 99.9% over trailing year</p></li>
-
-<li><p>43 minutes every 30 days for a service that needs to be available 99.9% of the time.
-This downtime is also your error budget.</p></li>
-
-<li><p><em>SLA</em> - Service Level Agreements
-SLA are business level agreemenets, which define the service availability for a customer and the penalties for failing to deliver that availability.</p></li>
-
-<li><p>Error Budget
-The error budget provides a clear, objective metric that determines how unreliable the service is allowed to be within a single quarter.</p></li>
-
-<li><p>Four Golden Signals
-The four golden signals of monitoring are:</p></li>
-
-<li><p>latency,</p></li>
-
-<li><p>traffic,</p></li>
-
-<li><p>errors</p></li>
-
-<li><p>saturation.</p></li>
+<li><p>Error Budget provides a clear, objective metric that determines how unreliable the service is allowed to be within a single quarter.</p></li>
 </ul>
 
-<p>There is no point to go more for it, if you like to read more the best resource will be a Google Book: Site Reliability Engineering: How Google Runs Production Systems.</p>
+<p>And of course Four Golden Signals which are:
+- latency,
+- traffic,
+- errors
+- saturation.</p>
 
-<ol>
-<li>How PARG is working</li>
-</ol>
+<p>There is no point to go here for more details, if you like to read about them the best resource will be a Google Book: Site Reliability Engineering: How Google Runs Production Systems.</p>
+
+<p>So how PARG is working.</p>
 
 <ul>
-<li>PARG is keeping all data in the memory, in the struct. It&rsquo;s safe to restart it, all rules will be regenerated
-automatically during the first run.</li>
-<li>PARG is watching events and looking for ingresses. If there is a new service, which is exposed
-by ingress, it will be automatically added to the prometheus rules.</li>
-<li>PARG can ADD new service, DELETE or EDIT it, depends on what type of event is it.</li>
-<li>Just in case of any issues with events (which can be when some workers are going down), PARG will re-generate
-full ingress list every 5 minutes.</li>
+<li><p>PARG is keeping all data in the memory, in the struct. It&rsquo;s safe to restart it, all rules will be regenerated
+automatically during the first run.</p></li>
+
+<li><p>PARG is watching events and looking for ingresses. If there is a new service, which is exposed
+by ingress, it will be automatically added to the prometheus rules.</p></li>
+
+<li><p>PARG can ADD new service, DELETE or EDIT it, depends on what type of event is it.</p></li>
+
+<li><p>Just in case of any issues with events (which can be when some workers are going down), PARG will re-generate
+full ingress list every 5 minutes.</p></li>
 </ul>
 
 <p>There is no need for human interaction. Everything is doing perg. What we need to do it add more type of alerts,
@@ -157,13 +135,14 @@ ________  UPDATE   ______________                _________________
 <p>Currently PARG is using 2 rules:
 - <code>Errors</code> - number of errors in percentage for the last 2 minutes. Default warning <code>2%</code>, default critical <code>5%</code>.
 Which means, that if we will get more then <code>2%</code> of 500 status code for all requests in the last 2 minutes we will
-get a warning.
-- <code>Latency</code> - Same idea as for Errors. We are checking here latency, default value is <code>0.500</code> which is 500ms, and
-critical is <code>1.000</code>, 1000ms.</p>
+get a warning.</p>
 
-<ol>
-<li>A bit of code</li>
-</ol>
+<ul>
+<li><code>Latency</code> - Same idea as for Errors. We are checking here latency, default value is <code>0.500</code> which is 500ms, and
+critical is <code>1.000</code>, 1000ms.</li>
+</ul>
+
+<p>And now a bit of code (golang!)</p>
 
 <p>We like to keep all values in one struct that&rsquo;s why we created a struct similar to this:</p>
 
