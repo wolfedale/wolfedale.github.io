@@ -73,11 +73,7 @@ ingresses and services.</p>
 <li><p>Error Budget provides a clear, objective metric that determines how unreliable the service is allowed to be within a single quarter.</p></li>
 </ul>
 
-<p>And of course Four Golden Signals which are:
-- latency,
-- traffic,
-- errors
-- saturation.</p>
+<p>And of course Four Golden Signals which are: latency, traffic, errors, saturation.</p>
 
 <p>There is no point to go here for more details, if you like to read about them the best resource will be a Google Book: Site Reliability Engineering: How Google Runs Production Systems.</p>
 
@@ -132,15 +128,15 @@ ________  UPDATE   ______________                _________________
 
 <h2 id="rules">Rules</h2>
 
-<p>Currently PARG is using 2 rules:
-- <code>Errors</code> - number of errors in percentage for the last 2 minutes. Default warning <code>2%</code>, default critical <code>5%</code>.
-Which means, that if we will get more then <code>2%</code> of 500 status code for all requests in the last 2 minutes we will
-get a warning.</p>
+<p>Currently PARG is using 2 rules:</p>
 
-<ul>
-<li><code>Latency</code> - Same idea as for Errors. We are checking here latency, default value is <code>0.500</code> which is 500ms, and
-critical is <code>1.000</code>, 1000ms.</li>
-</ul>
+<pre><code>- `Errors` - number of errors in percentage for the last 2 minutes. Default warning `2%`, default critical `5%`.
+Which means, that if we will get more then `2%` of 500 status code for all requests in the last 2 minutes we will
+get a warning.
+
+- `Latency` - Same idea as for Errors. We are checking here latency, default value is `0.500` which is 500ms, and
+critical is `1.000`, 1000ms.
+</code></pre>
 
 <p>And now a bit of code (golang!)</p>
 
