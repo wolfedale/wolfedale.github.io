@@ -6,10 +6,19 @@
     <description>Recent content in Posts on Pawel Grzesik</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Fri, 06 Sep 2019 14:16:07 +0200</lastBuildDate>
+    <lastBuildDate>Fri, 06 Dec 2019 19:41:16 +0100</lastBuildDate>
     
 	<atom:link href="https://wolfedale.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>Automate Prometheus Alerts in Kubernetes</title>
+      <link>https://wolfedale.github.io/posts/automate-prometheus-alerts-in-kubernetes/</link>
+      <pubDate>Fri, 06 Dec 2019 19:41:16 +0100</pubDate>
+      
+      <guid>https://wolfedale.github.io/posts/automate-prometheus-alerts-in-kubernetes/</guid>
+      <description>To keep monitoring rules up to date it&amp;rsquo;s not an easy task. Especially when we have a lot of services because of the scale, or because we are gworing fast. There is few ways how to handle it, one of it is to use pipeline and add new rules for the new service we just added. Depends on our pipline, it might be hard or easy. We already tried this method and it kind of worked.</description>
+    </item>
     
     <item>
       <title>Automate SSL Certificates in Kubernetes</title>

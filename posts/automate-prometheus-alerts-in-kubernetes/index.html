@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en-us" lang="en-us">
+<head>
+  <link href="//gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.58.0" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Automate Prometheus Alerts in Kubernetes &middot; Pawel Grzesik</title>
+
+  
+  <link type="text/css" rel="stylesheet" href="https://wolfedale.github.io/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://wolfedale.github.io/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://wolfedale.github.io/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://wolfedale.github.io/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class=" ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://wolfedale.github.io/"><h1>Pawel Grzesik</h1></a>
+      <p class="lead">
+       SRE at eBay, love to code in Golang and spending too much time on the shooting range. 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://wolfedale.github.io/">Home</a> </li>
+        <li><a href="http://github.com/wolfedale/"> Github </a></li><li><a href="https://www.linkedin.com/in/pawel-grzesik-45766420/"> LinkedIn </a></li><li><a href="https://twitter.com/GrzesikPawel"> Twitter </a></li>
+      </ul>
+    </nav>
+
+    <p>&copy; 2019. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>Automate Prometheus Alerts in Kubernetes</h1>
+  <time datetime=2019-12-06T19:41:16&#43;0100 class="post-date">Fri, Dec 6, 2019</time>
+  
+
+<p>To keep monitoring rules up to date it&rsquo;s not an easy task. Especially when we have a lot of services because of the scale, or because we are gworing fast.
+There is few ways how to handle it, one of it is to use pipeline and add new rules for the new service we just added. Depends on our pipline, it might
+be hard or easy. We already tried this method and it kind of worked. At some point it started to be more complicated and every time when we hit any issue
+someone was dealing with it again. Another problem which we hit was that whenever we wanted to change something globally we needed to do it for all
+repositories. We even wrote our own lib for it &ldquo;framework&rdquo; but we still had a problem with triggering all of them, and it also took a time.
+This is why we started to work on the PARG, Prometheus Alerter Rules Generator, an operator running inside of the cluster and watching for the new
+ingresses and services.</p>
+
+<ol>
+<li>What we monitor
+We are trying to monitor only really important services. Only what actually client is seeing. Before going to see the rules let&rsquo;s remind some terminology
+which we are going to use here:</li>
+</ol>
+
+<ul>
+<li><em>SLI</em> - Service Level Indicator
+which is a measurement the service provider uses for the goal. Frequency of successful probes of our system.
+Example:</li>
+<li>95th percentile latency of homepage requests over past 5 minutes &lt; 300ms</li>
+
+<li><p>The percentile of HTTP responses which are successful (200), out of all 20x and 50x HTTP responses over past 5 minutes</p></li>
+
+<li><p><em>SLO</em> - Service Level Objectives
+SLOs are service level objectices, which are agreed upon bounds for how often those SLIs must be met. SLO lets you specify how much downtime your service can have in a given period.
+Example:</p></li>
+
+<li><p>95th percentile homepage SLI will succeed 99.9% over trailing year</p></li>
+
+<li><p>43 minutes every 30 days for a service that needs to be available 99.9% of the time.
+This downtime is also your error budget.</p></li>
+
+<li><p><em>SLA</em> - Service Level Agreements
+SLA are business level agreemenets, which define the service availability for a customer and the penalties for failing to deliver that availability.</p></li>
+
+<li><p>Error Budget
+The error budget provides a clear, objective metric that determines how unreliable the service is allowed to be within a single quarter.</p></li>
+
+<li><p>Four Golden Signals
+The four golden signals of monitoring are:</p></li>
+
+<li><p>latency,</p></li>
+
+<li><p>traffic,</p></li>
+
+<li><p>errors</p></li>
+
+<li><p>saturation.</p></li>
+</ul>
+
+<p>There is no point to go more for it, if you like to read more the best resource will be a Google Book: Site Reliability Engineering: How Google Runs Production Systems.</p>
+
+<ol>
+<li>How PARG is working</li>
+</ol>
+
+<ul>
+<li>PARG is keeping all data in the memory, in the struct. It&rsquo;s safe to restart it, all rules will be regenerated
+automatically during the first run.</li>
+<li>PARG is watching events and looking for ingresses. If there is a new service, which is exposed
+by ingress, it will be automatically added to the prometheus rules.</li>
+<li>PARG can ADD new service, DELETE or EDIT it, depends on what type of event is it.</li>
+<li>Just in case of any issues with events (which can be when some workers are going down), PARG will re-generate
+full ingress list every 5 minutes.</li>
+</ul>
+
+<p>There is no need for human interaction. Everything is doing perg. What we need to do it add more type of alerts,
+or modify existing.</p>
+
+<pre><code>________    ADD    ______________                _________________
+| User | --------&gt; | NEW_SERVICE| &lt;-- [PARG] --&gt; |PrometheusRules| --&gt; On the LIST (CREATED)
+--------           --------------                -----------------
+
+________  DELETE   ______________                _________________
+| User | --------&gt; | NEW_SERVICE| &lt;-- [PARG] --&gt; |PrometheusRules| --&gt; Not on the LIST (DELETED)
+--------           --------------                -----------------
+
+________  UPDATE   ______________                _________________
+| User | --------&gt; | NEW_SERVICE| &lt;-- [PARG] --&gt; |PrometheusRules| --&gt; On the LIST (MODIFIED)
+--------           --------------                -----------------
+</code></pre>
+
+<p>We can modify rules by Annotations like:</p>
+
+<pre><code>➜ parg git:(master) ✗ curl http://parg/service/dns-service | jq
+
+{
+  &quot;Name&quot;: &quot;dns-service&quot;,
+  &quot;Namespace&quot;: &quot;webhook&quot;,
+  &quot;Annotations&quot;: {
+    &quot;parg_errors_critical&quot;: &quot;1&quot;,
+    &quot;parg_errors_warning&quot;: &quot;5&quot;,
+    &quot;parg_latency_critical&quot;: &quot;0.500&quot;,
+    &quot;parg_latency_warning&quot;: &quot;1.000&quot;
+  }
+}
+➜ parg git:(master) ✗
+
+</code></pre>
+
+<h2 id="rules">Rules</h2>
+
+<p>Currently PARG is using 2 rules:
+- <code>Errors</code> - number of errors in percentage for the last 2 minutes. Default warning <code>2%</code>, default critical <code>5%</code>.
+Which means, that if we will get more then <code>2%</code> of 500 status code for all requests in the last 2 minutes we will
+get a warning.
+- <code>Latency</code> - Same idea as for Errors. We are checking here latency, default value is <code>0.500</code> which is 500ms, and
+critical is <code>1.000</code>, 1000ms.</p>
+
+<ol>
+<li>A bit of code</li>
+</ol>
+
+<p>We like to keep all values in one struct that&rsquo;s why we created a struct similar to this:</p>
+
+<pre><code>type application struct {
+	kapi  kubeapi.KubeApiIface
+	ingr  ingress.IngressIface
+	srv   services.IFace
+	prom  v1.PrometheusIface
+	slack slack.SlackIFace
+}
+</code></pre>
+
+<p>To create it we are using separate function:</p>
+
+<pre><code>func newApplication() (*application, error) {
+	kAPI, err := kubeapi.New()
+	if err != nil {
+		return &amp;application{}, err
+	}
+
+	return &amp;application{
+		kapi:  kAPI,
+		ingr:  ingress.New(kAPI.GetClientSet()),
+		prom:  v1.New(kAPI.GetClientSetV1()),
+		srv:   service.New()
+		slack: slack.New(),
+	}, nil
+}
+</code></pre>
+
+<p>Every process, events, services, ingress, and creating struct is running on a different go-routine. To handle errors from them we are using:</p>
+
+<pre><code>			exists, err := app.prom.Get()
+			if err != nil {
+				select {
+				case outputChannel &lt;- IngressIterator{Ingress: nil, Err: err}:
+					return
+				}
+			}
+</code></pre>
+
+<p>And simple struct:</p>
+
+<pre><code>type IngressIterator struct {
+	Ingress *ingress.Ingresses
+	Err     error
+}
+</code></pre>
+
+<p>Each module is using it&rsquo;s own interface to simplify writing tests and adding new functionality</p>
+
+<pre><code>type IngressIface interface {
+	GenNewList(c *kubernetes.Clientset) error
+	GetAllFromStruct() *Ingresses
+	Create(ing *v1beta1.Ingress)
+	Update(ing *v1beta1.Ingress)
+	Delete(ing *v1beta1.Ingress) error
+	Exist(name string, namespace string) bool
+}
+</code></pre>
+
+<p>Of course to call and modify PrometheusRules we needed to register it to be able to call Custom Resource Definition.
+Most of the metrics we are taking from the <code>nginx_ingress_controller_ingress_upstream_latency_seconds</code> and <code>nginx_ingress_controller_requests</code>.</p>
+
+<p>And that&rsquo;s it. We have now out operator. We don&rsquo;t need to do more. Everytime when someone will add a new ingress or service, our rules
+will be added automatically by our operator. Same for modifying it or deleting. The only time when we do something with it is it add more
+rules.</p>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>
