@@ -17,7 +17,7 @@
       <pubDate>Fri, 06 Dec 2019 19:41:16 +0100</pubDate>
       
       <guid>https://wolfedale.github.io/posts/automate-prometheus-alerts-in-kubernetes/</guid>
-      <description>To keep monitoring rules up to date it&amp;rsquo;s not an easy task. Especially when we have a lot of services because of the big scale, or because we are growing fast. There is few ways how to handle it, one of it is to use pipelines and add new rules for the new services we just added. Depends on our pipline, it might be easy or not. We already tried this method and it kind of worked.</description>
+      <description>To keep monitoring rules up to date it&amp;rsquo;s not an easy task. Especially when we are running a lot of services, or when we are growing too fast. There is few ways how we can handle it. For example we can use pipelines and add new monitoring rules to every new service we are deploying. Depends on our piplines and size of services, it might be easy or not. In my case this method worked at the beginning, later on I started to have issues.</description>
     </item>
     
     <item>
